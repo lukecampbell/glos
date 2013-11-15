@@ -1,0 +1,3 @@
+[submodule "glos_catalog"]
+	path = glos_catalog
+	url = git@github.com:lukecampbell/glos_catalog.git

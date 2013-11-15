@@ -3,18 +3,47 @@ from datetime import datetime
 from netCDF4 import Dataset
 import calendar
 
-def generate(filepath,worksheet,output_file,data_range,units):
+class ParserContext:
+    filepath      = ''
+    worksheet     = ''
+    output_file   = ''
+    data_range    = tuple()
+    units         = ''
+    variable      = ''
+    standard_name = ''
+    fill_value    = -99.0
+    def __init__(self,
+                 filepath='',
+                 worksheet='',
+                 output_file='',
+                 data_range=None,
+                 units='',
+                 variable='',
+                 standard_name='',
+                 fill_value=-99.0):
+        self.filepath      = filepath
+        self.worksheet     = worksheet
+        self.output_file   = output_file
+        self.data_range    = data_range
+        self.units         = units
+        self.variable      = variable
+        self.standard_name = standard_name
+        self.fill_value    = fill_value
+
+
+
+def generate(parser_context):
     parser = XLSParser()
-    with open(filepath, 'r') as f:
+    with open(parser_context.filepath, 'r') as f:
         doc = f.read()
     info = parser.extract_worksheets(doc)
-    nccl = info[worksheet]
+    nccl = info[parser_context.worksheet]
     #header_line = 3
     #columns = nccl[header_line]
     #data_range = (4, 66)
-    data_rows = nccl[data_range[0]:data_range[1]]
-    print 'Generating',output_file
-    nc = Dataset(output_file, 'w')
+    data_rows = nccl[parser_context.data_range[0]:parser_context.data_range[1]]
+    print 'Generating',parser_context.output_file
+    nc = Dataset(parser_context.output_file, 'w')
     nc.createDimension('time', len(data_rows)*12)
     nc.GDAL = "GDAL 1.9.2, released 2012/10/08"
     nc.history = "Created dynamically in IPython Notebook 2013-11-14"
@@ -30,30 +59,47 @@ def generate(filepath,worksheet,output_file,data_range,units):
     time.units = 'seconds since 1970-01-01'
     time.long_name = 'Time'
     time.axis = 'T'
-    precip = nc.createVariable('precipitation', 'f8', ('time',), fill_value=-99.0)
-    precip.standard_name = 'precipitation_amount'
-    precip.units = units
+    precip = nc.createVariable(parser_context.variable, 'f8', ('time',), fill_value=parser_context.fill_value)
+    #precip.standard_name = 'precipitation_amount'
+    precip.standard_name = parser_context.standard_name
+
+    precip.units = parser_context.units
     for i,row in enumerate(data_rows):
         for j in xrange(12):
             the_date = datetime(row[0], j+1, 1)
             timestamp = calendar.timegm(the_date.utctimetuple())
             time[i*12 + j] = timestamp
-            value = row[j+1]
-            if value != u'':
-                precip[i*12 + j] = value
+            try:
+                value = float(row[j+1])
+            except ValueError:
+                continue
+            except TypeError:
+                continue
+
+            precip[i*12 + j] = value
 
     nc.close() 
 
 class NBS:
-    filepath = ''
-    lake = ''
+    filepath      = ''
+    lake          = ''
+    variable      = 'precipitation'
+    standard_name = 'precipitation_amount'
     @classmethod
     def nbs_comp_mm_lakeprc(cls):
         filepath = cls.filepath
         worksheet = 'NBS_comp_mm _LakePrc'
         outputfile = '../nc/%s/NBS_comp_mm_LakePrc.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 66), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,66)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
 
     @classmethod
@@ -62,7 +108,15 @@ class NBS:
         worksheet = 'NBS_comp_cms_LakePrc'
         outputfile = '../nc/%s/NBS_comp_cms_LakePrc.nc' % cls.lake
         units = 'm3 s-1'
-        generate(filepath, worksheet, outputfile, (4, 66), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,66)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def nbs_comp_mm_landprc(cls):
@@ -70,7 +124,15 @@ class NBS:
         worksheet = 'NBS_comp_mm_LandPrc'
         outputfile = '../nc/%s/NBS_comp_mm_LandPrc.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 67), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,67)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def nbs_comp_cms_landprc(cls):
@@ -78,7 +140,15 @@ class NBS:
         worksheet = 'NBS_comp_cms_LandPrc'
         outputfile = '../nc/%s/NBS_comp_cms_LandPrc.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 67), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,67)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def prclk(cls):
@@ -86,7 +156,15 @@ class NBS:
         worksheet = 'PrcLk'
         outputfile = '../nc/%s/PrcLk.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 116), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,116)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def prcld(cls):
@@ -94,7 +172,15 @@ class NBS:
         worksheet = 'PrcLd'
         outputfile = '../nc/%s/PrcLd.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 134), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,134)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def run(cls):
@@ -102,7 +188,15 @@ class NBS:
         worksheet = 'Run'
         outputfile = '../nc/%s/Run.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 116), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,116)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def evp(cls):
@@ -110,7 +204,15 @@ class NBS:
         worksheet = 'Evp'
         outputfile = '../nc/%s/Evp.nc' % cls.lake
         units = 'mm'
-        generate(filepath, worksheet, outputfile, (4, 68), units)
+        parser_context = ParserContext()
+        parser_context.filepath = filepath
+        parser_context.worksheet = worksheet
+        parser_context.output_file = outputfile
+        parser_context.data_range = (4,68)
+        parser_context.units = units
+        parser_context.variable = cls.variable
+        parser_context.standard_name = cls.standard_name
+        generate(parser_context)
 
     @classmethod
     def all(cls):
@@ -152,18 +254,601 @@ class Superior(NBS):
     filepath = '../data/glerl_report/NBS_SUP.xlsx'
     lake = 'superior'
 
+class AirTemperature:
+    filepath = '../data/glerl_report/AirTemperature_OverBasin.xlsx'
+    datapath = 'airtemp'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'deg_C'
+        ctxt.variable = 'air_temperature'
+        ctxt.standard_name = 'air_temperature'
+        ctxt.fill_value = -9999.0
+        ctxt.data_range = (4,67)
+        generate(ctxt)
+
+    
+    @classmethod
+    def all(cls):
+        worksheets = [u'HGBAve',
+                      u'SupMin',
+                      u'StcAve',
+                      u'EriMax',
+                      u'OntMax',
+                      u'StcMin',
+                      u'StcMax',
+                      u'HGBMin',
+                      u'GeoAve',
+                      u'SupMax',
+                      u'MicMin',
+                      u'GrtAve',
+                      u'HurMin',
+                      u'MHGMax',
+                      u'HurMax',
+                      u'OntMin',
+                      u'OntAve',
+                      u'GeoMin',
+                      u'MicAve',
+                      u'HGBMax',
+                      u'EriAve',
+                      u'MicMax',
+                      u'MHGMin',
+                      u'GrtMax',
+                      u'SupAve',
+                      u'GrtMin',
+                      u'MHGAve',
+                      u'HurAve',
+                      u'EriMin',
+                      u'GeoMax']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class AirTemperature_OverLand:
+    filepath = '../data/glerl_report/AirTemperature_OverLand.xlsx'
+    datapath = 'airtemp_ol'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'deg_C'
+        ctxt.variable = 'air_temperature'
+        ctxt.standard_name = 'air_temperature'
+        ctxt.fill_value = -9999.0
+        ctxt.data_range = (4,67)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+         u'HGBAve',
+         u'SupMin',
+         u'StcAve',
+         u'EriMax',
+         u'OntMax',
+         u'StcMin',
+         u'StcMax',
+         u'HGBMin',
+         u'GeoAve',
+         u'SupMax',
+         u'MicMin',
+         u'GrtAve',
+         u'HurMin',
+         u'MHGMax',
+         u'HurMax',
+         u'OntMin',
+         u'OntAve',
+         u'GeoMin',
+         u'MicAve',
+         u'HGBMax',
+         u'EriAve',
+         u'MicMax',
+         u'MHGMin',
+         u'GrtMax',
+         u'SupAve',
+         u'GrtMin',
+         u'MHGAve',
+         u'HurAve',
+         u'EriMin',
+         u'GeoMax']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class AirTempsOverLake:
+    filepath = '../data/glerl_report/AirTemps_OverLake.xls'
+    datapath = 'airtemps'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'deg_C'
+        ctxt.variable = 'air_temperature'
+        ctxt.standard_name = 'air_temperature'
+        ctxt.fill_value = -9999.0
+        ctxt.data_range = (4,67)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+             u'HGBAve',
+             u'SupMin',
+             u'StcAve',
+             u'EriMax',
+             u'OntMax',
+             u'StcMin',
+             u'StcMax',
+             u'HGBMin',
+             u'GeoAve',
+             u'SupMax',
+             u'MicMin',
+             u'GrtAve',
+             u'HurMin',
+             u'MHGMax',
+             u'HurMax',
+             u'OntMin',
+             u'OntAve',
+             u'GeoMin',
+             u'MicAve',
+             u'HGBMax',
+             u'EriAve',
+             u'MicMax',
+             u'MHGMin',
+             u'GrtMax',
+             u'SupAve',
+             u'GrtMin',
+             u'MHGAve',
+             u'HurAve',
+             u'EriMin',
+             u'GeoMax']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class ChangeInStorage:
+    filepath = '../data/glerl_report/ChangeInStorage.xls'
+    datapath = 'storage'
+
+    @classmethod
+    def generator(cls, worksheet, data_range):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'm3 s-1'
+        ctxt.variable = 'change_in_storage'
+        ctxt.standard_name = 'change_in_storage'
+        ctxt.fill_value = -9999.0
+        ctxt.data_range = data_range
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+                [u'MHN', (5,96)],
+                [u'STC', (5,86)],
+                [u'MIC', (5,96)],
+                [u'HUR', (5,96)],
+                [u'SUP', (5, 136)],
+                [u'ERI', (5, 96)],
+                [u'ONT', (5, 96)]]
+        for worksheet, data_range in worksheets:
+            cls.generator(worksheet, data_range)
+
+
+class CloudCoverOverlake:
+    filepath = '../data/glerl_report/CloudCover_OverLake.xlsx'
+    datapath = 'cloud'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'percent'
+        ctxt.variable = 'cloud_cover'
+        ctxt.standard_name = 'large_scale_cloud_area_fraction'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (4,68)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+             u'GRT',
+             u'STC',
+             u'MHG',
+             u'MIC',
+             u'GEO',
+             u'HUR',
+             u'SUP',
+             u'HGB',
+             u'ERI',
+             u'ONT']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class Evaporation:
+    filepath = '../data/glerl_report/Evaporation.xlsx'
+    datapath = 'evaporation'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'mm'
+        ctxt.variable = 'evaporation'
+        ctxt.standard_name = 'water_evaporation_amount'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (4,66)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+             u'GRT',
+             u'STC',
+             u'MHG',
+             u'MIC',
+             u'GEO',
+             u'HUR',
+             u'SUP',
+             u'HGB',
+             u'ERI',
+             u'ONT']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class LevelsBOM:
+    filepath = '../data/glerl_report/Levels_BOM.xls'
+    datapath = 'levels'
+
+    @classmethod
+    def generator(cls, worksheet, data_range):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'm'
+        ctxt.variable = 'water_level'
+        ctxt.standard_name = 'water_level'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = data_range
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+                 ['MHN', (5,106)],
+                 ['STC', (5,96)],
+                 ['MIC', (5,96)],
+                 ['HUR', (5,96)],
+                 ['SUP', (5,146)],
+                 ['ERI', (5,106)],
+                 ['ONT', (5,106)]]
+        for worksheet, data_range in worksheets:
+            cls.generator(worksheet,data_range)
+
+class PrecipBasin:
+    filepath = '../data/glerl_report/Precip_Basin.xlsx'
+    datapath = 'precipbasin'
+
+    @classmethod
+    def generator(cls, worksheet, units):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = units
+        ctxt.variable = 'precipitation'
+        ctxt.standard_name = 'precipitation'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (5,116)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        mm_worksheets = [
+                 u'MIC_mm',
+                 u'GEO_mm',
+                 u'ERI_mm',
+                 u'ONT_mm',
+                 u'MHG_mm',
+                 u'SUP_mm',
+                 u'HGB_mm',
+                 u'HUR_mm',
+                 u'GRT_mm',
+                 u'STC_mm']
+        cm_worksheets = [
+                 u'ONT_cms',
+                 u'MIC_cms',
+                 u'STC_cms',
+                 u'SUP_cms',
+                 u'GRT_cms',
+                 u'HGB_cms',
+                 u'HUR_cms',
+                 u'ERI_cms',
+                 u'GEO_cms',
+                 u'MHG_cms']
+        for worksheet in mm_worksheets:
+            cls.generator(worksheet, 'mm')
+
+        for worksheet in cm_worksheets:
+            cls.generator(worksheet, 'm3 s-1')
+
+class PrecipLake:
+    filepath = '../data/glerl_report/Precip_Lake.xlsx'
+    datapath = 'preciplake'
+
+    @classmethod
+    def generator(cls, worksheet, units):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = units
+        ctxt.variable = 'precipitation'
+        ctxt.standard_name = 'precipitation'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (5,116)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        mm_worksheets = [
+                 u'MIC_mm',
+                 u'GEO_mm',
+                 u'ERI_mm',
+                 u'ONT_mm',
+                 u'MHG_mm',
+                 u'SUP_mm',
+                 u'HGB_mm',
+                 u'HUR_mm',
+                 u'GRT_mm',
+                 u'STC_mm']
+        cm_worksheets = [
+                 u'ONT_cms',
+                 u'MIC_cms',
+                 u'STC_cms',
+                 u'SUP_cms',
+                 u'GRT_cms',
+                 u'HGB_cms',
+                 u'HUR_cms',
+                 u'ERI_cms',
+                 u'GEO_cms',
+                 u'MHG_cms']
+        for worksheet in mm_worksheets:
+            cls.generator(worksheet, 'mm')
+
+        for worksheet in cm_worksheets:
+            cls.generator(worksheet, 'm3 s-1')
+
+class PrecipLand:
+    filepath = '../data/glerl_report/Precip_Land.xlsx'
+    datapath = 'precipland'
+
+    @classmethod
+    def generator(cls, worksheet, units):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = units
+        ctxt.variable = 'precipitation'
+        ctxt.standard_name = 'precipitation'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (5,116)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        mm_worksheets = [
+                 u'MIC_mm',
+                 u'GEO_mm',
+                 u'ERI_mm',
+                 u'ONT_mm',
+                 u'MHG_mm',
+                 u'SUP_mm',
+                 u'HGB_mm',
+                 u'HUR_mm',
+                 u'GRT_mm',
+                 u'STC_mm']
+        cm_worksheets = [
+                 u'ONT_cms',
+                 u'MIC_cms',
+                 u'STC_cms',
+                 u'SUP_cms',
+                 u'GRT_cms',
+                 u'HGB_cms',
+                 u'HUR_cms',
+                 u'ERI_cms',
+                 u'GEO_cms',
+                 u'MHG_cms']
+        for worksheet in mm_worksheets:
+            cls.generator(worksheet, 'mm')
+
+        for worksheet in cm_worksheets:
+            cls.generator(worksheet, 'm3 s-1')
+
+class Runoff:
+    filepath = '../data/glerl_report/Runoff.xlsx'
+    datapath = 'runoff'
+
+    @classmethod
+    def generator(cls, worksheet, units):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = units
+        ctxt.variable = 'runoff'
+        ctxt.standard_name = 'runoff_amount'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (5,120)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        mm_worksheets = [
+                 u'MIC_mm',
+                 u'GEO_mm',
+                 u'ERI_mm',
+                 u'ONT_mm',
+                 u'GRT_mm',
+                 u'STC_mm',
+                 u'MHG_mm',
+                 u'SUP_mm',
+                 u'HGB_mm',
+                 u'HUR_mm']
+        cm_worksheets = [
+                 u'ONT_cms',
+                 u'ERI_cms',
+                 u'GEO_cms',
+                 u'MHG_cms',
+                 u'SUP_NoO_cms',
+                 u'GRT_cms',
+                 u'MIC_cms',
+                 u'STC_cms',
+                 u'SUP_cms',
+                 u'HGB_cms',
+                 u'HUR_cms']
+        pct_worksheets = [
+                 u'ERI_Pct',
+                 u'HUR_Pct',
+                 u'MIC_Pct',
+                 u'ONT_Pct',
+                 u'SUP_Pct',
+                 u'GEO_Pct',
+                 u'STC_Pct']
+        for worksheet in mm_worksheets:
+            cls.generator(worksheet, 'mm')
+
+        for worksheet in cm_worksheets:
+            cls.generator(worksheet, 'm3 s-1')
+
+        for worksheet in pct_worksheets:
+            cls.generator(worksheet, 'percent')
+
+class WaterTempsModeled:
+    filepath = '../data/glerl_report/WaterTemps_Modeled.xlsx'
+    datapath = 'watertemps'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'deg_C'
+        ctxt.variable = 'surface_temperature'
+        ctxt.standard_name = 'surface_temperature'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (4,66)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+                 u'STC',
+                 u'HGB',
+                 u'MIC',
+                 u'HUR',
+                 u'SUP',
+                 u'GEO',
+                 u'ERI',
+                 u'ONT']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
+
+class WindSpeedOverlake:
+    filepath = '../data/glerl_report/WindSpeed_Overlake.xlsx'
+    datapath = 'windspeed'
+
+    @classmethod
+    def generator(cls, worksheet):
+        ctxt = ParserContext()
+        ctxt.worksheet = worksheet
+        ctxt.output_file = '../nc/%s/%s.nc' % (cls.datapath, worksheet)
+        ctxt.filepath = cls.filepath
+        ctxt.units = 'm s-1'
+        ctxt.variable = 'wind_speed'
+        ctxt.standard_name = 'wind_speed'
+        ctxt.fill_value = -99.0
+        ctxt.data_range = (4,68)
+        generate(ctxt)
+
+    @classmethod
+    def all(cls):
+        worksheets = [
+                 u'GRT',
+                 u'STC',
+                 u'MHG',
+                 u'MIC',
+                 u'GEO',
+                 u'HUR',
+                 u'SUP',
+                 u'HGB',
+                 u'ERI',
+                 u'ONT']
+        for worksheet in worksheets:
+            cls.generator(worksheet)
 
 if __name__ == '__main__':
-    Erie.all()
+    # NBS Data
 
-    Huron.all()
+    #Erie.all()
+    #Huron.all()
+    #MichiganHuron.all()
+    #Michigan.all()
+    #Ontario.all()
+    #StClair.all()
+    #Superior.all()
 
-    MichiganHuron.all()
+    # Air Temperature
 
-    Michigan.all()
+    #AirTemperature.all()
+    #AirTemperature_OverLand.all()
+    #AirTempsOverLake.all()
 
-    Ontario.all()
+    # Change In Storage
 
-    StClair.all()
+    #ChangeInStorage.all()
 
-    Superior.all()
+    # Cloud Cover
+    #CloudCoverOverlake.all()
+
+    # Evaporation
+    #Evaporation.all()
+
+    # Levels BOM
+    #LevelsBOM.all()
+
+    # Precipitation
+    
+    #PrecipBasin.all()
+    #PrecipLake.all()
+    #PrecipLand.all()
+
+    # Runoff
+
+    #Runoff.all()
+
+    # Water Temps Modeled
+    #WaterTempsModeled.all()
+    
+    # Wind Speed Over Lake
+    WindSpeedOverlake.all()
+
+
+

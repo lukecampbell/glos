@@ -1,7 +1,10 @@
 from xlsparser import XLSParser
 from datetime import datetime
 from netCDF4 import Dataset
+from jinja2 import Template
+from hashlib import sha1
 import calendar
+import re
 
 class ParserContext:
     filepath      = ''
@@ -12,6 +15,7 @@ class ParserContext:
     variable      = ''
     standard_name = ''
     fill_value    = -99.0
+    category = ''
     def __init__(self,
                  filepath='',
                  worksheet='',
@@ -20,7 +24,8 @@ class ParserContext:
                  units='',
                  variable='',
                  standard_name='',
-                 fill_value=-99.0):
+                 fill_value=-99.0,
+                 category=''):
         self.filepath      = filepath
         self.worksheet     = worksheet
         self.output_file   = output_file
@@ -29,10 +34,73 @@ class ParserContext:
         self.variable      = variable
         self.standard_name = standard_name
         self.fill_value    = fill_value
+        self.category = category
+
+class CatalogDataset:
+    def __init__(self):
+        self.name =''
+        self.id = ''
+        self.nc_name = ''
+        self.keywords = ''
+        self.nc_file = ''
+        self.title = ''
+        self.lat_min = 0.0
+        self.lat_max = 0.0
+        self.lon_min = 0.0
+        self.lon_max = 0.0
 
 
+category_geo = {
+        'erie' : [[41.145270499999995, 43.153226499999995],[-83.56737199999999, -78.645816]],
+        'huron' : [[43.030886, 45.925314], [-84.530071, -80.775424]],
+        'superior' : [[46.425095,48.723861], [-92.177277,-84.594911]],
+        'michigan' : [[41.62,46.03], [-88.27,-84.77]],
+        'michiganhuron' : [[41.5586,48.95], [-92.414,-75.659]],
+        'ontario': [[43.12,44.33], [-79.80,-75.95]],
+        'lakes' : [[41.5586,48.95], [-92.414,-75.659]],
+        'stclair' : [[42.3,42.68], [-83.00,-82.43]],
+        '':[[41.5586,48.95], [-92.414,-75.659]]
+        }
 
-def generate(parser_context):
+
+datasets = []
+
+
+def generate_catalog_xml(parser_context):
+    global datasets
+    parser = XLSParser()
+    with open(parser_context.filepath, 'r') as f:
+        doc = f.read()
+    info = parser.extract_worksheets(doc)
+    nccl = info[parser_context.worksheet]
+
+    dataset = CatalogDataset()
+    dataset.name = nccl[0][0]
+    dataset.nc_name = parser_context.output_file.split('/')[-1]
+    dataset.id = sha1(dataset.name).hexdigest()[:8]
+    dataset.title = nccl[0][0]
+    dataset.keywords = 'GLOS'
+    dataset.nc_file = '/var/data-cache/%s' % parser_context.output_file[6:]
+    lats, lons = category_geo[parser_context.category]
+    dataset.lat_min, dataset.lat_max = lats
+    dataset.lon_min, dataset.lon_max = lons
+    datasets.append(dataset)
+
+def render(catalog):
+    global datasets
+    with open('catalog_template.xml', 'r') as f:
+        catalog_template = f.read()
+
+
+    template = Template(catalog_template)
+    print 'Rendering','../glos_catalog/TDS/glerl/%s.xml'  % catalog 
+    with open('../glos_catalog/TDS/glerl/%s.xml' % catalog, 'w') as f:
+        f.write(template.render(catalog_name=catalog, datasets=datasets))
+
+    datasets = []
+
+
+def generate_nc(parser_context):
     parser = XLSParser()
     with open(parser_context.filepath, 'r') as f:
         doc = f.read()
@@ -54,9 +122,9 @@ def generate(parser_context):
     nc.standard_name_vocabulary = "http://www.cgd.ucar.edu/cms/eaton/cf-metadata/standard_name.html"
     nc.project = 'GLOS'
     nc.Conventions = "CF-1.6"
-    time = nc.createVariable('time', 'i8', ('time',))
+    time = nc.createVariable('time', 'i4', ('time',))
     time.standard_name = 'time'
-    time.units = 'seconds since 1970-01-01'
+    time.units = 'hours since 1970-01-01'
     time.long_name = 'Time'
     time.axis = 'T'
     precip = nc.createVariable(parser_context.variable, 'f8', ('time',), fill_value=parser_context.fill_value)
@@ -70,15 +138,18 @@ def generate(parser_context):
             timestamp = calendar.timegm(the_date.utctimetuple())
             time[i*12 + j] = timestamp
             try:
-                value = float(row[j+1])
+                value = float(row[j+1]) / 3600.
             except ValueError:
                 continue
             except TypeError:
                 continue
 
             precip[i*12 + j] = value
-
     nc.close() 
+
+def generate(parser_context):
+    #generate_nc(parser_context)
+    generate_catalog_xml(parser_context)
 
 class NBS:
     filepath      = ''
@@ -99,6 +170,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
 
@@ -116,6 +188,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -132,6 +205,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -148,6 +222,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -164,6 +239,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -180,6 +256,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -196,6 +273,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -212,6 +290,7 @@ class NBS:
         parser_context.units = units
         parser_context.variable = cls.variable
         parser_context.standard_name = cls.standard_name
+        parser_context.category = cls.lake
         generate(parser_context)
 
     @classmethod
@@ -269,6 +348,20 @@ class AirTemperature:
         ctxt.standard_name = 'air_temperature'
         ctxt.fill_value = -9999.0
         ctxt.data_range = (4,67)
+        cats = {
+          'HGB' : 'huron',
+          'Sup' : 'superior',
+          'Ont' : 'ontario',
+          'Grt' : 'lakes',
+          'Stc' : 'stclair',
+          'Geo' : 'lakes',
+          'Eri' : 'erie',
+          'Mic' : 'michigan'
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     
@@ -322,6 +415,20 @@ class AirTemperature_OverLand:
         ctxt.standard_name = 'air_temperature'
         ctxt.fill_value = -9999.0
         ctxt.data_range = (4,67)
+        cats = {
+          'HGB' : 'huron',
+          'Sup' : 'superior',
+          'Ont' : 'ontario',
+          'Grt' : 'lakes',
+          'Stc' : 'stclair',
+          'Geo' : 'lakes',
+          'Eri' : 'erie',
+          'Mic' : 'michigan'
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -375,6 +482,20 @@ class AirTempsOverLake:
         ctxt.standard_name = 'air_temperature'
         ctxt.fill_value = -9999.0
         ctxt.data_range = (4,67)
+        cats = {
+          'HGB' : 'huron',
+          'Sup' : 'superior',
+          'Ont' : 'ontario',
+          'Grt' : 'lakes',
+          'Stc' : 'stclair',
+          'Geo' : 'lakes',
+          'Eri' : 'erie',
+          'Mic' : 'michigan'
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -428,6 +549,18 @@ class ChangeInStorage:
         ctxt.standard_name = 'change_in_storage'
         ctxt.fill_value = -9999.0
         ctxt.data_range = data_range
+        cats = {
+          'HUR' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'STC' : 'stclair',
+          'ERI' : 'erie',
+          'MHN' : 'michigan'
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -459,6 +592,21 @@ class CloudCoverOverlake:
         ctxt.standard_name = 'large_scale_cloud_area_fraction'
         ctxt.fill_value = -99.0
         ctxt.data_range = (4,68)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -492,6 +640,21 @@ class Evaporation:
         ctxt.standard_name = 'water_evaporation_amount'
         ctxt.fill_value = -99.0
         ctxt.data_range = (4,66)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -525,6 +688,21 @@ class LevelsBOM:
         ctxt.standard_name = 'water_level'
         ctxt.fill_value = -99.0
         ctxt.data_range = data_range
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -555,6 +733,21 @@ class PrecipBasin:
         ctxt.standard_name = 'precipitation'
         ctxt.fill_value = -99.0
         ctxt.data_range = (5,116)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -602,6 +795,21 @@ class PrecipLake:
         ctxt.standard_name = 'precipitation'
         ctxt.fill_value = -99.0
         ctxt.data_range = (5,116)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -649,6 +857,21 @@ class PrecipLand:
         ctxt.standard_name = 'precipitation'
         ctxt.fill_value = -99.0
         ctxt.data_range = (5,116)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -696,6 +919,21 @@ class Runoff:
         ctxt.standard_name = 'runoff_amount'
         ctxt.fill_value = -99.0
         ctxt.data_range = (5,120)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -755,6 +993,21 @@ class WaterTempsModeled:
         ctxt.standard_name = 'surface_temperature'
         ctxt.fill_value = -99.0
         ctxt.data_range = (4,66)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -786,6 +1039,21 @@ class WindSpeedOverlake:
         ctxt.standard_name = 'wind_speed'
         ctxt.fill_value = -99.0
         ctxt.data_range = (4,68)
+        cats = {
+          'HGB' : 'huron',
+          'SUP' : 'superior',
+          'ONT' : 'ontario',
+          'GRT' : 'lakes',
+          'STC' : 'stclair',
+          'GEO' : 'lakes',
+          'ERI' : 'erie',
+          'MIC' : 'michigan',
+          'MHG' : 'michigan',
+         }
+        for k,v in cats.iteritems():
+            if k in worksheet:
+                ctxt.category = v
+                break
         generate(ctxt)
 
     @classmethod
@@ -807,48 +1075,52 @@ class WindSpeedOverlake:
 if __name__ == '__main__':
     # NBS Data
 
-    #Erie.all()
-    #Huron.all()
-    #MichiganHuron.all()
-    #Michigan.all()
-    #Ontario.all()
-    #StClair.all()
-    #Superior.all()
+    Erie.run()
+    Huron.all()
+    MichiganHuron.all()
+    Michigan.all()
+    Ontario.all()
+    StClair.all()
+    Superior.all()
+
+    render('NBS')
 
     # Air Temperature
 
-    #AirTemperature.all()
-    #AirTemperature_OverLand.all()
-    #AirTempsOverLake.all()
+    AirTemperature.all()
+    AirTemperature_OverLand.all()
+    AirTempsOverLake.all()
 
-    # Change In Storage
+    render('AIRTEMPS')
 
-    #ChangeInStorage.all()
-
-    # Cloud Cover
-    #CloudCoverOverlake.all()
-
-    # Evaporation
-    #Evaporation.all()
 
     # Levels BOM
-    #LevelsBOM.all()
+    LevelsBOM.all()
 
     # Precipitation
+    PrecipBasin.all()
+    PrecipLake.all()
+    PrecipLand.all()
     
-    #PrecipBasin.all()
-    #PrecipLake.all()
-    #PrecipLand.all()
+    # Change In Storage
+    ChangeInStorage.all()
 
     # Runoff
+    Runoff.all()
+    
+    # Evaporation
+    Evaporation.all()
 
-    #Runoff.all()
+
+    render('PRECIP')
 
     # Water Temps Modeled
-    #WaterTempsModeled.all()
+    WaterTempsModeled.all()
     
     # Wind Speed Over Lake
     WindSpeedOverlake.all()
 
+    # Cloud Cover
+    CloudCoverOverlake.all()
 
-
+    render('ATMO')

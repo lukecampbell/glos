@@ -11,7 +11,7 @@
   </service>
 
   {% for dataset in datasets %}
-  <dataset name="{{dataset.name}}" ID="{{dataset.id}}" urlPath="{{catalog_name}}/{{dataset.nc_name}}">
+  <dataset name="{{dataset.name}}" ID="{{dataset.id}}" urlPath="{{catalog_name}}/{{dataset.id}}.nc">
 
     <metadata inherited="true">
       <serviceName>agg</serviceName>

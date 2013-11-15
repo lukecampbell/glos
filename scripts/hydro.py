@@ -65,6 +65,7 @@ category_geo = {
 
 datasets = []
 
+dataset_names = []
 
 def generate_catalog_xml(parser_context):
     global datasets
@@ -77,7 +78,7 @@ def generate_catalog_xml(parser_context):
     dataset = CatalogDataset()
     dataset.name = nccl[0][0]
     dataset.nc_name = parser_context.output_file.split('/')[-1]
-    dataset.id = sha1(dataset.name).hexdigest()[:8]
+    dataset.id = sha1(dataset.name + parser_context.output_file).hexdigest()[:8]
     dataset.title = nccl[0][0]
     dataset.keywords = 'GLOS'
     dataset.nc_file = '/var/data-cache/%s' % parser_context.output_file[6:]
@@ -88,6 +89,7 @@ def generate_catalog_xml(parser_context):
 
 def render(catalog):
     global datasets
+    global dataset_names
     with open('catalog_template.xml', 'r') as f:
         catalog_template = f.read()
 
@@ -96,6 +98,11 @@ def render(catalog):
     print 'Rendering','../glos_catalog/TDS/glerl/%s.xml'  % catalog 
     with open('../glos_catalog/TDS/glerl/%s.xml' % catalog, 'w') as f:
         f.write(template.render(catalog_name=catalog, datasets=datasets))
+    for dataset in datasets:
+        dsname = '/'.join([catalog,dataset.id])
+        if dsname in dataset_names:
+            raise Exception("Duplicate: %s" % dataset.nc_file)
+        dataset_names.append(dsname)
 
     datasets = []
 
@@ -122,9 +129,9 @@ def generate_nc(parser_context):
     nc.standard_name_vocabulary = "http://www.cgd.ucar.edu/cms/eaton/cf-metadata/standard_name.html"
     nc.project = 'GLOS'
     nc.Conventions = "CF-1.6"
-    time = nc.createVariable('time', 'i4', ('time',))
+    time = nc.createVariable('time', 'f8', ('time',))
     time.standard_name = 'time'
-    time.units = 'hours since 1970-01-01'
+    time.units = 'seconds since 1970-01-01'
     time.long_name = 'Time'
     time.axis = 'T'
     precip = nc.createVariable(parser_context.variable, 'f8', ('time',), fill_value=parser_context.fill_value)
@@ -138,7 +145,7 @@ def generate_nc(parser_context):
             timestamp = calendar.timegm(the_date.utctimetuple())
             time[i*12 + j] = timestamp
             try:
-                value = float(row[j+1]) / 3600.
+                value = float(row[j+1])
             except ValueError:
                 continue
             except TypeError:
@@ -148,8 +155,8 @@ def generate_nc(parser_context):
     nc.close() 
 
 def generate(parser_context):
-    #generate_nc(parser_context)
-    generate_catalog_xml(parser_context)
+    generate_nc(parser_context)
+    #generate_catalog_xml(parser_context)
 
 class NBS:
     filepath      = ''
